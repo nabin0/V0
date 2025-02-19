@@ -1,37 +1,48 @@
 package org.example.project
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
-
-import v0.composeapp.generated.resources.Res
-import v0.composeapp.generated.resources.compose_multiplatform
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import cafe.adriel.voyager.navigator.Navigator
+import cafe.adriel.voyager.transitions.FadeTransition
+import kotlinx.coroutines.launch
+import org.example.project.core.navigation.NavigationDestination
+import org.example.project.core.navigation.NavigationManager
+import org.example.project.core.navigation.getScreen
+import org.example.project.presentation.homeScreen.HomeScreen
+import org.koin.compose.getKoin
 
 @Composable
-@Preview
 fun App() {
     MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
+        val navigationManager: NavigationManager = getKoin().get()
+        val coroutineScope = rememberCoroutineScope()
+        var baseNavigator: Navigator? = null
+        coroutineScope.launch {
+            navigationManager.navigationEvent.collect {
+                when (it.destination) {
+                    NavigationDestination.PopBackStack -> baseNavigator?.pop()
+                    NavigationDestination.ReplaceAllWith -> baseNavigator?.replaceAll(
+                        getScreen(it.data as NavigationDestination, null)
+                    )
+
+                    NavigationDestination.PopBackStackUpTo -> {
+                        baseNavigator?.popUntil { screen ->
+                            val destination = it.data as NavigationDestination
+                            screen == getScreen(destination, null)
+                        }
+                    }
+
+                    else -> baseNavigator?.push(getScreen(it.destination, it.data))
                 }
             }
         }
+
+        Navigator(screen = HomeScreen(),
+            content = { navigator ->
+                baseNavigator = navigator
+                FadeTransition(navigator)
+            }
+        )
     }
 }
